@@ -1,0 +1,369 @@
+# ─────────────────────────────────────────────────────────────────────────────
+# Offline Tide — SDL desktop demo
+#
+# A fully self-contained demo (no external packages/assets) that shows the
+# `tide` component predicting tides for NOAA station 8452944 (Conimicut Light,
+# RI) with NO internet — purely from the current time. Renders an LVGL tide
+# gauge in an SDL window on your PC.
+#
+#   cd example
+#   esphome run sdl_demo.yaml          # opens an SDL window
+#
+# Needs SDL2 dev libs (libsdl2-dev) — same as any ESPHome `host` + `sdl` build.
+# On real hardware you'd drop `host:`/`sdl`/`host_time` and use your normal
+# board + `time: platform: sntp` (or homeassistant). Everything under `tide:`,
+# `sensor:` and `text_sensor:` stays identical.
+# ─────────────────────────────────────────────────────────────────────────────
+
+substitutions:
+  # Generated with: python ../generator/generate_station.py --id 8452944
+  station_data: "TIDE1|U=m|Z0=0.6420|D=MLLW|MHW=1.3220|MLW=0.0520|M2:0.576:7.6|S2:0.123:31|N2:0.14:351.7|K1:0.065:170.7|M4:0.089:56.2|O1:0.05:201.1|M6:0.017:301.9|MK3:0.011:29.7|S4:0.011:29|MN4:0.04:7.8|NU2:0.024:350|S6:0.002:299.1|MU2:0.028:355.8|2N2:0.021:336.7|OO1:0.005:198.7|LAM2:0.004:351.5|S1:0.013:119.8|M1:0.004:225.9|J1:0.007:201.3|SA:0.072:140.4|RHO:0.003:188.9|Q1:0.011:192.3|T2:0.011:17.9|R2:0.003:212.7|P1:0.025:180.2|2SM2:0.002:35.9|M3:0.009:44.7|L2:0.015:355.8|2MK3:0.013:11.5|K2:0.033:29.4|M8:0.002:102|MS4:0.021:137.9"
+
+esphome:
+  name: tide-sdl-demo
+
+host:
+
+logger:
+  level: DEBUG
+  logs:
+    lvgl: INFO
+
+external_components:
+  - source:
+      type: local
+      path: ../components
+    components: [tide]
+  # Test-only helper that seeds the clock from the PC time (host has no sntp).
+  - source:
+      type: local
+      path: ../test/test_components
+    components: [host_time]
+
+time:
+  - platform: host_time
+    id: system_time
+    timezone: America/New_York
+
+display:
+  - platform: sdl
+    id: my_display
+    update_interval: never
+    auto_clear_enabled: false
+    dimensions:
+      width: 800
+      height: 480
+
+font:
+  - file: "gfonts://Roboto@700"
+    id: font_xl
+    size: 60
+    bpp: 4
+  - file: "gfonts://Roboto@700"
+    id: font_lg
+    size: 34
+    bpp: 4
+  - file: "gfonts://Roboto@500"
+    id: font_md
+    size: 22
+    bpp: 4
+  - file: "gfonts://Roboto@500"
+    id: font_sm
+    size: 16
+    bpp: 4
+
+# ─── The offline tide predictor ──────────────────────────────────────────────
+tide:
+  id: my_tide
+  time_id: system_time
+  units: ft
+  update_interval: 30s
+  station_data: ${station_data}
+
+sensor:
+  - platform: tide
+    tide_id: my_tide
+    type: current_height
+    id: t_current
+    internal: true
+    update_interval: 5s
+    on_value:
+      then:
+        - lvgl.label.update:
+            id: lbl_height
+            text: !lambda 'char b[16]; snprintf(b, sizeof(b), "%.2f", x); return std::string(b);'
+        - lvgl.bar.update:
+            id: bar_height
+            value: !lambda "return (int) (x * 10.0f);"
+  - platform: tide
+    tide_id: my_tide
+    type: tide_percentage
+    id: t_pct
+    internal: true
+    update_interval: 5s
+    on_value:
+      then:
+        - lvgl.arc.update:
+            id: arc_tide
+            value: !lambda "return (int) x;"
+        - lvgl.label.update:
+            id: lbl_pct
+            text: !lambda 'char b[12]; snprintf(b, sizeof(b), "%.0f%%", x); return std::string(b);'
+  - platform: tide
+    tide_id: my_tide
+    type: high_level
+    id: t_high
+    internal: true
+    update_interval: 5s
+    on_value:
+      then:
+        - lvgl.label.update:
+            id: lbl_high_level
+            text: !lambda 'char b[16]; snprintf(b, sizeof(b), "%.2f ft", x); return std::string(b);'
+  - platform: tide
+    tide_id: my_tide
+    type: low_level
+    id: t_low
+    internal: true
+    update_interval: 5s
+    on_value:
+      then:
+        - lvgl.label.update:
+            id: lbl_low_level
+            text: !lambda 'char b[16]; snprintf(b, sizeof(b), "%.2f ft", x); return std::string(b);'
+  - platform: tide
+    tide_id: my_tide
+    type: mean_high_water
+    id: t_mhw
+    internal: true
+    on_value:
+      then:
+        - lvgl.label.update:
+            id: lbl_mhw
+            text: !lambda 'char b[20]; snprintf(b, sizeof(b), "MHW %.1f", x); return std::string(b);'
+  - platform: tide
+    tide_id: my_tide
+    type: mean_low_water
+    id: t_mlw
+    internal: true
+    on_value:
+      then:
+        - lvgl.label.update:
+            id: lbl_mlw
+            text: !lambda 'char b[20]; snprintf(b, sizeof(b), "MLW %.1f", x); return std::string(b);'
+
+text_sensor:
+  - platform: tide
+    tide_id: my_tide
+    type: high_time
+    id: t_high_time
+    internal: true
+    update_interval: 5s
+    on_value:
+      then:
+        - lvgl.label.update:
+            id: lbl_high_time
+            text: !lambda "return x;"
+  - platform: tide
+    tide_id: my_tide
+    type: low_time
+    id: t_low_time
+    internal: true
+    update_interval: 5s
+    on_value:
+      then:
+        - lvgl.label.update:
+            id: lbl_low_time
+            text: !lambda "return x;"
+
+# Tick the on-screen clock every second.
+interval:
+  - interval: 1s
+    then:
+      - lvgl.label.update:
+          id: lbl_clock
+          text: !lambda |-
+            auto t = id(system_time).now();
+            if (!t.is_valid()) return std::string("--:--");
+            char b[8]; snprintf(b, sizeof(b), "%02d:%02d", t.hour, t.minute); return std::string(b);
+
+# ─── UI ──────────────────────────────────────────────────────────────────────
+lvgl:
+  pages:
+    - id: main_page
+      bg_color: 0x0B141C
+      widgets:
+        - label:
+            align: TOP_LEFT
+            x: 20
+            y: 16
+            text_font: font_md
+            text_color: 0xE6EEF5
+            text: "OFFLINE TIDE  ·  Conimicut Light  ·  8452944"
+        - label:
+            align: TOP_LEFT
+            x: 20
+            y: 44
+            text_font: font_sm
+            text_color: 0x5C7080
+            text: "Harmonic prediction from the clock alone — no internet"
+        - label:
+            id: lbl_clock
+            align: TOP_RIGHT
+            x: -20
+            y: 14
+            text_font: font_lg
+            text_color: 0xE6EEF5
+            text: "--:--"
+
+        # Tide gauge (arc) + centred readouts
+        - obj:
+            align: LEFT_MID
+            x: 26
+            y: 20
+            width: 320
+            height: 320
+            bg_opa: TRANSP
+            border_width: 0
+            pad_all: 0
+            widgets:
+              - arc:
+                  id: arc_tide
+                  align: CENTER
+                  width: 300
+                  height: 300
+                  min_value: 0
+                  max_value: 100
+                  value: 50
+                  arc_width: 16
+                  arc_color: 0x1E2C3A
+                  indicator:
+                    arc_color: 0x27C4FF
+                    arc_width: 16
+                  knob:
+                    bg_opa: TRANSP
+              - label:
+                  id: lbl_height
+                  align: CENTER
+                  y: -22
+                  text_font: font_xl
+                  text_color: 0xFFFFFF
+                  text: "--"
+              - label:
+                  align: CENTER
+                  y: 26
+                  text_font: font_sm
+                  text_color: 0x7C93A6
+                  text: "feet (MLLW)"
+              - label:
+                  id: lbl_pct
+                  align: CENTER
+                  y: 60
+                  text_font: font_md
+                  text_color: 0x27C4FF
+                  text: "--%"
+
+        # Next high card
+        - obj:
+            align: TOP_RIGHT
+            x: -20
+            y: 92
+            width: 340
+            height: 130
+            bg_color: 0x122232
+            bg_opa: COVER
+            radius: 14
+            border_width: 0
+            widgets:
+              - label:
+                  align: TOP_LEFT
+                  x: 18
+                  y: 14
+                  text_font: font_md
+                  text_color: 0x7FE7A6
+                  text: "NEXT HIGH"
+              - label:
+                  id: lbl_high_time
+                  align: TOP_LEFT
+                  x: 18
+                  y: 44
+                  text_font: font_lg
+                  text_color: 0xFFFFFF
+                  text: "--:--"
+              - label:
+                  id: lbl_high_level
+                  align: BOTTOM_RIGHT
+                  x: -18
+                  y: -14
+                  text_font: font_md
+                  text_color: 0x9FB3C8
+                  text: "-- ft"
+
+        # Next low card
+        - obj:
+            align: TOP_RIGHT
+            x: -20
+            y: 234
+            width: 340
+            height: 130
+            bg_color: 0x122232
+            bg_opa: COVER
+            radius: 14
+            border_width: 0
+            widgets:
+              - label:
+                  align: TOP_LEFT
+                  x: 18
+                  y: 14
+                  text_font: font_md
+                  text_color: 0xF2B36B
+                  text: "NEXT LOW"
+              - label:
+                  id: lbl_low_time
+                  align: TOP_LEFT
+                  x: 18
+                  y: 44
+                  text_font: font_lg
+                  text_color: 0xFFFFFF
+                  text: "--:--"
+              - label:
+                  id: lbl_low_level
+                  align: BOTTOM_RIGHT
+                  x: -18
+                  y: -14
+                  text_font: font_md
+                  text_color: 0x9FB3C8
+                  text: "-- ft"
+
+        # Height bar (current level within the MLW..MHW band)
+        - label:
+            id: lbl_mlw
+            align: BOTTOM_LEFT
+            x: 20
+            y: -18
+            text_font: font_sm
+            text_color: 0x7C93A6
+            text: "MLW --"
+        - label:
+            id: lbl_mhw
+            align: BOTTOM_RIGHT
+            x: -20
+            y: -18
+            text_font: font_sm
+            text_color: 0x7C93A6
+            text: "MHW --"
+        - bar:
+            id: bar_height
+            align: BOTTOM_MID
+            y: -44
+            width: 760
+            height: 20
+            min_value: 0
+            max_value: 60
+            value: 0
+            bg_color: 0x1E2C3A
+            bg_opa: COVER
+            radius: 10
+            indicator:
+              bg_color: 0x27C4FF
+              radius: 10

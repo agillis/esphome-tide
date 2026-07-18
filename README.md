@@ -47,6 +47,20 @@ generator/                 # Python: build & validate station strings
 test/                      # host-platform build + C++/reference diff
 ```
 
+## Try the SDL demo
+
+A self-contained desktop demo (station 8452944, Conimicut Light) renders an LVGL
+tide gauge in an SDL window — no internet, no hardware:
+
+```bash
+cd example
+esphome run sdl_demo.yaml     # needs libsdl2-dev, like any host+sdl build
+```
+
+It shows the current height, an arc driven by the tide percentage, the next
+high/low times & levels, and MHW/MLW — all computed offline from the clock.
+See [`example/sdl_demo.yaml`](example/sdl_demo.yaml).
+
 ## 1. Generate a station string
 
 Find your NOAA station id at <https://tidesandcurrents.noaa.gov/map/> (any id
