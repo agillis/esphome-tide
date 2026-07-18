@@ -72,7 +72,7 @@ font:
     bpp: 4
   - file: "gfonts://Roboto@500"
     id: font_axis
-    size: 15
+    size: 13
     bpp: 4
 
 tide:
@@ -112,7 +112,7 @@ script:
 
           lv_obj_t *cv = id(tide_canvas);
           lv_color_t c_bg = lv_color_hex(0xFFFFFF);
-          lv_color_t c_grid = lv_color_hex(0xE7EDF3);
+          lv_color_t c_grid = lv_color_hex(0xCBD8E4);
           lv_color_t c_fill = lv_color_hex(0xCFE3F7);
           lv_color_t c_line = lv_color_hex(0x3E86D6);
           lv_color_t c_now = lv_color_hex(0x9B1C1C);
@@ -125,22 +125,23 @@ script:
           };
           int y0 = yfor(0.0f);
 
-          // grid: horizontal every 1 ft, vertical every 6 h
-          for (float v = 0.0f; v <= VMAX + 0.01f; v += 1.0f) {
-            int gy = yfor(v);
-            for (int x = 0; x < W; x++) lv_canvas_set_px(cv, x, gy, c_grid, LV_OPA_COVER);
-          }
-          for (int hh = 0; hh <= SPAN_H; hh += 6) {
-            int gx = (int) ((long) hh * 3600 * W / span_s);
-            if (gx >= W) gx = W - 1;
-            for (int y = 0; y < H; y++) lv_canvas_set_px(cv, gx, y, c_grid, LV_OPA_COVER);
-          }
-
-          // filled area under the curve
+          // filled area under the curve (drawn first, so the grid sits on top
+          // and stays faintly visible over the fill, like the reference chart)
           for (int x = 0; x < W; x++) {
             int y = yfor(ys[x]);
             int a = y < y0 ? y : y0, b = y < y0 ? y0 : y;
             for (int yy = a; yy <= b; yy++) lv_canvas_set_px(cv, x, yy, c_fill, LV_OPA_COVER);
+          }
+
+          // grid over the fill: horizontal every 0.5 ft, vertical every 2 h
+          for (int i = 0; i <= (int) (VMAX * 2 + 0.5f); i++) {
+            int gy = yfor(0.5f * i);
+            for (int x = 0; x < W; x++) lv_canvas_set_px(cv, x, gy, c_grid, LV_OPA_COVER);
+          }
+          for (int hh = 0; hh <= SPAN_H; hh += 2) {
+            int gx = (int) ((long) hh * 3600 * W / span_s);
+            if (gx >= W) gx = W - 1;
+            for (int y = 0; y < H; y++) lv_canvas_set_px(cv, gx, y, c_grid, LV_OPA_COVER);
           }
 
           // the curve line (2 px), connecting adjacent columns
@@ -213,23 +214,41 @@ lvgl:
             width: 880
             height: 360
 
-        # Y-axis labels (ft), aligned to the horizontal gridlines
-        - label: { id: y6, align: TOP_LEFT, x: 34, y: 55, text_font: font_axis, text_color: 0x8A99A8, text: "6" }
-        - label: { align: TOP_LEFT, x: 34, y: 115, text_font: font_axis, text_color: 0x8A99A8, text: "5" }
-        - label: { align: TOP_LEFT, x: 34, y: 175, text_font: font_axis, text_color: 0x8A99A8, text: "4" }
-        - label: { align: TOP_LEFT, x: 34, y: 235, text_font: font_axis, text_color: 0x8A99A8, text: "3" }
-        - label: { align: TOP_LEFT, x: 34, y: 295, text_font: font_axis, text_color: 0x8A99A8, text: "2" }
-        - label: { align: TOP_LEFT, x: 34, y: 355, text_font: font_axis, text_color: 0x8A99A8, text: "1" }
-        - label: { align: TOP_LEFT, x: 34, y: 415, text_font: font_axis, text_color: 0x8A99A8, text: "0" }
+        # Y-axis labels (ft), aligned to the horizontal gridlines (every 0.5 ft)
+        - label: { align: TOP_LEFT, x: 28, y: 56, text_font: font_axis, text_color: 0x8A99A8, text: "6.0" }
+        - label: { align: TOP_LEFT, x: 28, y: 86, text_font: font_axis, text_color: 0x8A99A8, text: "5.5" }
+        - label: { align: TOP_LEFT, x: 28, y: 116, text_font: font_axis, text_color: 0x8A99A8, text: "5.0" }
+        - label: { align: TOP_LEFT, x: 28, y: 146, text_font: font_axis, text_color: 0x8A99A8, text: "4.5" }
+        - label: { align: TOP_LEFT, x: 28, y: 176, text_font: font_axis, text_color: 0x8A99A8, text: "4.0" }
+        - label: { align: TOP_LEFT, x: 28, y: 206, text_font: font_axis, text_color: 0x8A99A8, text: "3.5" }
+        - label: { align: TOP_LEFT, x: 28, y: 236, text_font: font_axis, text_color: 0x8A99A8, text: "3.0" }
+        - label: { align: TOP_LEFT, x: 28, y: 266, text_font: font_axis, text_color: 0x8A99A8, text: "2.5" }
+        - label: { align: TOP_LEFT, x: 28, y: 296, text_font: font_axis, text_color: 0x8A99A8, text: "2.0" }
+        - label: { align: TOP_LEFT, x: 28, y: 326, text_font: font_axis, text_color: 0x8A99A8, text: "1.5" }
+        - label: { align: TOP_LEFT, x: 28, y: 356, text_font: font_axis, text_color: 0x8A99A8, text: "1.0" }
+        - label: { align: TOP_LEFT, x: 28, y: 386, text_font: font_axis, text_color: 0x8A99A8, text: "0.5" }
+        - label: { align: TOP_LEFT, x: 28, y: 416, text_font: font_axis, text_color: 0x8A99A8, text: "0.0" }
 
-        # X-axis labels (local time), under the vertical gridlines (every 6 h)
+        # X-axis labels (local time), under the vertical gridlines (every 2 h)
         - label: { align: TOP_LEFT, x: 42, y: 430, text_font: font_axis, text_color: 0x8A99A8, text: "12AM" }
+        - label: { align: TOP_LEFT, x: 93, y: 430, text_font: font_axis, text_color: 0x8A99A8, text: "2AM" }
+        - label: { align: TOP_LEFT, x: 141, y: 430, text_font: font_axis, text_color: 0x8A99A8, text: "4AM" }
         - label: { align: TOP_LEFT, x: 190, y: 430, text_font: font_axis, text_color: 0x8A99A8, text: "6AM" }
-        - label: { align: TOP_LEFT, x: 334, y: 430, text_font: font_axis, text_color: 0x8A99A8, text: "12PM" }
+        - label: { align: TOP_LEFT, x: 239, y: 430, text_font: font_axis, text_color: 0x8A99A8, text: "8AM" }
+        - label: { align: TOP_LEFT, x: 285, y: 430, text_font: font_axis, text_color: 0x8A99A8, text: "10AM" }
+        - label: { align: TOP_LEFT, x: 335, y: 430, text_font: font_axis, text_color: 0x8A99A8, text: "12PM" }
+        - label: { align: TOP_LEFT, x: 386, y: 430, text_font: font_axis, text_color: 0x8A99A8, text: "2PM" }
+        - label: { align: TOP_LEFT, x: 434, y: 430, text_font: font_axis, text_color: 0x8A99A8, text: "4PM" }
         - label: { align: TOP_LEFT, x: 483, y: 430, text_font: font_axis, text_color: 0x8A99A8, text: "6PM" }
-        - label: { align: TOP_LEFT, x: 628, y: 430, text_font: font_axis, text_color: 0x8A99A8, text: "12AM" }
-        - label: { align: TOP_LEFT, x: 776, y: 430, text_font: font_axis, text_color: 0x8A99A8, text: "6AM" }
-        - label: { align: TOP_LEFT, x: 918, y: 430, text_font: font_axis, text_color: 0x8A99A8, text: "12PM" }
+        - label: { align: TOP_LEFT, x: 532, y: 430, text_font: font_axis, text_color: 0x8A99A8, text: "8PM" }
+        - label: { align: TOP_LEFT, x: 578, y: 430, text_font: font_axis, text_color: 0x8A99A8, text: "10PM" }
+        - label: { align: TOP_LEFT, x: 629, y: 430, text_font: font_axis, text_color: 0x8A99A8, text: "12AM" }
+        - label: { align: TOP_LEFT, x: 680, y: 430, text_font: font_axis, text_color: 0x8A99A8, text: "2AM" }
+        - label: { align: TOP_LEFT, x: 728, y: 430, text_font: font_axis, text_color: 0x8A99A8, text: "4AM" }
+        - label: { align: TOP_LEFT, x: 777, y: 430, text_font: font_axis, text_color: 0x8A99A8, text: "6AM" }
+        - label: { align: TOP_LEFT, x: 826, y: 430, text_font: font_axis, text_color: 0x8A99A8, text: "8AM" }
+        - label: { align: TOP_LEFT, x: 872, y: 430, text_font: font_axis, text_color: 0x8A99A8, text: "10AM" }
+        - label: { align: TOP_LEFT, x: 922, y: 430, text_font: font_axis, text_color: 0x8A99A8, text: "12PM" }
 
         # "now" time badge — repositioned onto the red line each redraw
         - label:
