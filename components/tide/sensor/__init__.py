@@ -15,10 +15,14 @@ TYPES = {
     "tide_percentage": SensorType.TIDE_SENSOR_PERCENTAGE,
     "high_level": SensorType.TIDE_SENSOR_HIGH_LEVEL,
     "low_level": SensorType.TIDE_SENSOR_LOW_LEVEL,
+    "next_high_level": SensorType.TIDE_SENSOR_NEXT_HIGH_LEVEL,
+    "next_low_level": SensorType.TIDE_SENSOR_NEXT_LOW_LEVEL,
     "mean_high_water": SensorType.TIDE_SENSOR_MEAN_HIGH_WATER,
     "mean_low_water": SensorType.TIDE_SENSOR_MEAN_LOW_WATER,
     "high_epoch": SensorType.TIDE_SENSOR_HIGH_EPOCH,
     "low_epoch": SensorType.TIDE_SENSOR_LOW_EPOCH,
+    "next_high_epoch": SensorType.TIDE_SENSOR_NEXT_HIGH_EPOCH,
+    "next_low_epoch": SensorType.TIDE_SENSOR_NEXT_LOW_EPOCH,
 }
 
 CONFIG_SCHEMA = (

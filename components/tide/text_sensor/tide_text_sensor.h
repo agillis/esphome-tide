@@ -13,6 +13,8 @@ namespace tide {
 enum TideTextSensorType {
   TIDE_TEXT_HIGH_TIME,
   TIDE_TEXT_LOW_TIME,
+  TIDE_TEXT_NEXT_HIGH_TIME,
+  TIDE_TEXT_NEXT_LOW_TIME,
 };
 
 class TideTextSensor : public text_sensor::TextSensor, public PollingComponent {

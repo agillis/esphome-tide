@@ -13,7 +13,21 @@ void TideTextSensor::update() {
   if (this->parent_ == nullptr)
     return;
 
-  time_t epoch = (this->type_ == TIDE_TEXT_HIGH_TIME) ? this->parent_->high_epoch() : this->parent_->low_epoch();
+  time_t epoch = 0;
+  switch (this->type_) {
+    case TIDE_TEXT_HIGH_TIME:
+      epoch = this->parent_->high_epoch();
+      break;
+    case TIDE_TEXT_LOW_TIME:
+      epoch = this->parent_->low_epoch();
+      break;
+    case TIDE_TEXT_NEXT_HIGH_TIME:
+      epoch = this->parent_->next_high_epoch();
+      break;
+    case TIDE_TEXT_NEXT_LOW_TIME:
+      epoch = this->parent_->next_low_epoch();
+      break;
+  }
   if (epoch == 0) {
     this->publish_state("--:--");
     return;

@@ -15,6 +15,8 @@ TextType = tide_ns.enum("TideTextSensorType")
 TYPES = {
     "high_time": TextType.TIDE_TEXT_HIGH_TIME,
     "low_time": TextType.TIDE_TEXT_LOW_TIME,
+    "next_high_time": TextType.TIDE_TEXT_NEXT_HIGH_TIME,
+    "next_low_time": TextType.TIDE_TEXT_NEXT_LOW_TIME,
 }
 
 CONF_FORMAT = "format"

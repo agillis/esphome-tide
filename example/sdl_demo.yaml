@@ -111,7 +111,7 @@ sensor:
             text: !lambda 'char b[12]; snprintf(b, sizeof(b), "%.0f%%", x); return std::string(b);'
   - platform: tide
     tide_id: my_tide
-    type: high_level
+    type: next_high_level
     id: t_high
     internal: true
     update_interval: 5s
@@ -122,7 +122,7 @@ sensor:
             text: !lambda 'char b[16]; snprintf(b, sizeof(b), "%.2f ft", x); return std::string(b);'
   - platform: tide
     tide_id: my_tide
-    type: low_level
+    type: next_low_level
     id: t_low
     internal: true
     update_interval: 5s
@@ -155,7 +155,7 @@ sensor:
 text_sensor:
   - platform: tide
     tide_id: my_tide
-    type: high_time
+    type: next_high_time
     id: t_high_time
     internal: true
     update_interval: 5s
@@ -166,7 +166,7 @@ text_sensor:
             text: !lambda "return x;"
   - platform: tide
     tide_id: my_tide
-    type: low_time
+    type: next_low_time
     id: t_low_time
     internal: true
     update_interval: 5s

@@ -34,6 +34,14 @@ struct TideSnapshot {
   time_t low_epoch{0};
   float high_level{NAN};  // meters above chart datum
   float low_level{NAN};
+  // The strictly upcoming high and low (both in the future), independent of the
+  // bracketing pair above.
+  bool has_next_high{false};
+  bool has_next_low{false};
+  time_t next_high_epoch{0};
+  time_t next_low_epoch{0};
+  float next_high_level{NAN};
+  float next_low_level{NAN};
 };
 
 // Offline harmonic tide predictor for a single station. Mirrors the outputs of
@@ -60,6 +68,10 @@ class TideComponent : public PollingComponent {
   float low_level();          // level of the low tide bounding "now"
   time_t high_epoch();        // time of that high tide
   time_t low_epoch();         // time of that low tide
+  float next_high_level();    // level of the next (upcoming) high tide
+  float next_low_level();     // level of the next (upcoming) low tide
+  time_t next_high_epoch();   // time of the next (upcoming) high tide
+  time_t next_low_epoch();    // time of the next (upcoming) low tide
   float mean_high_water() const { return conv_(station_.mhw); }
   float mean_low_water() const { return conv_(station_.mlw); }
 

@@ -134,9 +134,16 @@ These sensor IDs mirror the online NOAA module
 to it unchanged. Swap the `!include` of the NOAA package for this `tide:` block.
 
 Available `sensor` types: `current_height`, `tide_percentage`, `high_level`,
-`low_level`, `mean_high_water`, `mean_low_water`, `high_epoch`, `low_epoch`.
-Available `text_sensor` types: `high_time`, `low_time` (with an optional
-`format:` strftime string, default `%I:%M %p`).
+`low_level`, `next_high_level`, `next_low_level`, `mean_high_water`,
+`mean_low_water`, `high_epoch`, `low_epoch`, `next_high_epoch`, `next_low_epoch`.
+Available `text_sensor` types: `high_time`, `low_time`, `next_high_time`,
+`next_low_time` (each with an optional `format:` strftime string, default
+`%I:%M %p`).
+
+`high_*`/`low_*` are the tides **bracketing now** (one may be in the past — this
+mirrors the NOAA module, e.g. for a "since last low / until next high" clock).
+`next_*` are the **strictly upcoming** high and low (both in the future) — use
+these for "next high/next low" readouts.
 
 ## Verification
 

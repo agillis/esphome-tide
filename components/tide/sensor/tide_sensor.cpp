@@ -26,6 +26,12 @@ void TideSensor::update() {
     case TIDE_SENSOR_LOW_LEVEL:
       value = this->parent_->low_level();
       break;
+    case TIDE_SENSOR_NEXT_HIGH_LEVEL:
+      value = this->parent_->next_high_level();
+      break;
+    case TIDE_SENSOR_NEXT_LOW_LEVEL:
+      value = this->parent_->next_low_level();
+      break;
     case TIDE_SENSOR_MEAN_HIGH_WATER:
       value = this->parent_->mean_high_water();
       break;
@@ -37,6 +43,12 @@ void TideSensor::update() {
       break;
     case TIDE_SENSOR_LOW_EPOCH:
       value = (float) this->parent_->low_epoch();
+      break;
+    case TIDE_SENSOR_NEXT_HIGH_EPOCH:
+      value = (float) this->parent_->next_high_epoch();
+      break;
+    case TIDE_SENSOR_NEXT_LOW_EPOCH:
+      value = (float) this->parent_->next_low_epoch();
       break;
   }
   this->publish_state(value);

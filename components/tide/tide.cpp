@@ -148,6 +148,11 @@ void TideComponent::find_extremes_(time_t now) {
   float prev_level = NAN, next_level = NAN;
   bool prev_high = false, next_high = false;
 
+  // First strictly-future high and low, tracked independently of the bracket.
+  bool have_next_high = false, have_next_low = false;
+  double nh_dt = 0.0, nl_dt = 0.0;
+  float nh_level = NAN, nl_level = NAN;
+
   double t_prev = -back;
   double d_prev = this->eval_deriv_(t_prev);
   for (double t = -back + step; t <= fwd + 1e-9; t += step) {
@@ -162,19 +167,43 @@ void TideComponent::find_extremes_(time_t now) {
         prev_level = level;
         prev_high = is_high;
         have_prev = true;
-      } else if (!have_next) {
-        next_dt = root;
-        next_level = level;
-        next_high = is_high;
-        have_next = true;
+      } else {
+        if (!have_next) {
+          next_dt = root;
+          next_level = level;
+          next_high = is_high;
+          have_next = true;
+        }
+        if (is_high && !have_next_high) {
+          have_next_high = true;
+          nh_dt = root;
+          nh_level = level;
+        }
+        if (!is_high && !have_next_low) {
+          have_next_low = true;
+          nl_dt = root;
+          nl_level = level;
+        }
       }
     }
     d_prev = d_cur;
     t_prev = t;
   }
 
+  // Upcoming high/low are populated regardless of whether a bracket was found.
+  if (have_next_high) {
+    this->snap_.has_next_high = true;
+    this->snap_.next_high_epoch = now + (time_t) llround(nh_dt * 3600.0);
+    this->snap_.next_high_level = nh_level;
+  }
+  if (have_next_low) {
+    this->snap_.has_next_low = true;
+    this->snap_.next_low_epoch = now + (time_t) llround(nl_dt * 3600.0);
+    this->snap_.next_low_level = nl_level;
+  }
+
   if (!have_prev || !have_next)
-    return;  // leave snapshot without high/low (percentage stays NAN)
+    return;  // leave snapshot without a bracket (percentage stays NAN)
 
   time_t prev_epoch = now + (time_t) llround(prev_dt * 3600.0);
   time_t next_epoch = now + (time_t) llround(next_dt * 3600.0);
@@ -237,6 +266,26 @@ time_t TideComponent::high_epoch() {
 time_t TideComponent::low_epoch() {
   this->ensure_fresh_();
   return (this->snap_.valid && this->snap_.has_low) ? this->snap_.low_epoch : 0;
+}
+
+float TideComponent::next_high_level() {
+  this->ensure_fresh_();
+  return (this->snap_.valid && this->snap_.has_next_high) ? this->conv_(this->snap_.next_high_level) : NAN;
+}
+
+float TideComponent::next_low_level() {
+  this->ensure_fresh_();
+  return (this->snap_.valid && this->snap_.has_next_low) ? this->conv_(this->snap_.next_low_level) : NAN;
+}
+
+time_t TideComponent::next_high_epoch() {
+  this->ensure_fresh_();
+  return (this->snap_.valid && this->snap_.has_next_high) ? this->snap_.next_high_epoch : 0;
+}
+
+time_t TideComponent::next_low_epoch() {
+  this->ensure_fresh_();
+  return (this->snap_.valid && this->snap_.has_next_low) ? this->snap_.next_low_epoch : 0;
 }
 
 }  // namespace tide
