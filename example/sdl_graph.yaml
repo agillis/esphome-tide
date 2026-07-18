@@ -95,16 +95,32 @@ script:
       - lambda: |-
           // ── geometry (must match the static axis labels below) ──────────────
           const int LEFT = 56, TOP = 64, W = 880, H = 360;  // canvas placement/size
-          const int PAST_H = 13, FULL_H = 37;               // hours of past / total shown
+          const int FULL_H = 38;                            // total hours shown
           const float VMAX = 6.0f;                          // ft full-scale
           static float ys[880];
 
           auto tnow = id(system_time).now();
           if (!tnow.is_valid()) return;
           time_t now = tnow.timestamp;
-          // Rolling window: go back just far enough to include the last high AND
-          // low tide (extremes are ~6.2 h apart), then forward through the day+.
-          time_t start = now - (long) PAST_H * 3600;
+          // Anchor the left edge at the 2nd-most-recent extreme so the graph
+          // begins exactly at a high or low tide (like a tide-chart site): if we
+          // just had a high that's the preceding low, and vice-versa. Find it by
+          // scanning ~15 h of past predictions for turning points.
+          static float yb[180];
+          int bstep = 15 * 3600 / 180;
+          id(my_tide)->predict_series(now - 15L * 3600, bstep, 180, yb);
+          time_t e1 = 0, e2 = 0;
+          int dl = 0;
+          for (int i = 1; i < 180; i++) {
+            int d = yb[i] > yb[i - 1] ? 1 : (yb[i] < yb[i - 1] ? -1 : 0);
+            if (d && dl && d != dl) {
+              e2 = e1;
+              e1 = (now - 15L * 3600) + (time_t) ((long) (i - 1) * bstep);
+            }
+            if (d)
+              dl = d;
+          }
+          time_t start = e2 ? e2 : (e1 ? e1 : now - 12L * 3600);
           long span_s = (long) FULL_H * 3600;
           int step_s = (int) (span_s / W);
 
