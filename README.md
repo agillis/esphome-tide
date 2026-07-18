@@ -47,19 +47,36 @@ generator/                 # Python: build & validate station strings
 test/                      # host-platform build + C++/reference diff
 ```
 
-## Try the SDL demo
+## Try the SDL demos
 
-A self-contained desktop demo (station 8452944, Conimicut Light) renders an LVGL
-tide gauge in an SDL window — no internet, no hardware:
+Two self-contained desktop demos (station 8452944, East Greenwich / Conimicut
+Light) run in an SDL window — no internet, no hardware:
 
 ```bash
 cd example
-esphome run sdl_demo.yaml     # needs libsdl2-dev, like any host+sdl build
+esphome run sdl_demo.yaml      # tide gauge: arc %, current height, next high/low
+esphome run sdl_graph.yaml     # filled tide-curve graph (see below)
 ```
 
-It shows the current height, an arc driven by the tide percentage, the next
-high/low times & levels, and MHW/MLW — all computed offline from the clock.
-See [`example/sdl_demo.yaml`](example/sdl_demo.yaml).
+(needs `libsdl2-dev`, like any ESPHome `host` + `sdl` build.)
+
+### Tide-curve graph
+
+`sdl_graph.yaml` draws a filled tide curve with high/low markers, gridlines and a
+live "now" line, painted onto an LVGL **canvas** via the LVGL C API from a lambda
+(ESPHome 2026.7 has no `chart` widget). The curve comes from the component's
+`predict_series()`.
+
+![tide graph preview](example/tide_graph_preview.png)
+
+*(Preview rendered from the same curve math the firmware uses.)*
+
+Graphing API on the component:
+
+```cpp
+float predict(time_t utc);                                     // height (display units) at any time
+void  predict_series(time_t start, int step_s, int n, float*); // fill n heights for a curve
+```
 
 ## 1. Generate a station string
 

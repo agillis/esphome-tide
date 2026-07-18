@@ -75,8 +75,16 @@ class TideComponent : public PollingComponent {
   float mean_high_water() const { return conv_(station_.mhw); }
   float mean_low_water() const { return conv_(station_.mlw); }
 
+  // Predict the instantaneous height (display units) at any UTC epoch.
+  float predict(time_t utc);
+  // Fill out[count] with heights (display units) at start, start+step, ... .
+  // Node factors are held at `start` (fine for windows up to a couple of days);
+  // ideal for plotting a tide curve. Values are NAN if the station is invalid.
+  void predict_series(time_t start_utc, int step_seconds, int count, float *out);
+
  protected:
   float conv_(float meters) const;
+  void build_params_(const Astro &a, std::vector<ConstituentParam> &out) const;
   void ensure_fresh_();
   void recompute_(time_t now);
   double eval_height_(double dt_hours) const;

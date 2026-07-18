@@ -1,0 +1,249 @@
+# ─────────────────────────────────────────────────────────────────────────────
+# Offline Tide — SDL graph demo
+#
+# Draws a filled tide curve (like a tide-chart website) for NOAA station
+# 8452944 (East Greenwich / Conimicut Light, RI), fully offline. The curve,
+# grid, high/low markers and the moving "now" line are painted onto an LVGL
+# `canvas` with the LVGL C API from a lambda; the axis labels are static LVGL
+# labels. Data comes from the offline `tide` component's predict_series().
+#
+#   cd example
+#   esphome run sdl_graph.yaml        # opens an SDL window (needs libsdl2-dev)
+#
+# ESPHome 2026.7 has no `chart` widget, so this uses `canvas`. On real hardware
+# drop host:/sdl/host_time and use your board + time: platform: sntp. The canvas
+# buffer is ~630 KB (880x360 RGB565) — fine with PSRAM (e.g. ESP32-P4).
+# ─────────────────────────────────────────────────────────────────────────────
+
+substitutions:
+  # python ../generator/generate_station.py --id 8452944
+  station_data: "TIDE1|U=m|Z0=0.6420|D=MLLW|MHW=1.3220|MLW=0.0520|M2:0.576:7.6|S2:0.123:31|N2:0.14:351.7|K1:0.065:170.7|M4:0.089:56.2|O1:0.05:201.1|M6:0.017:301.9|MK3:0.011:29.7|S4:0.011:29|MN4:0.04:7.8|NU2:0.024:350|S6:0.002:299.1|MU2:0.028:355.8|2N2:0.021:336.7|OO1:0.005:198.7|LAM2:0.004:351.5|S1:0.013:119.8|M1:0.004:225.9|J1:0.007:201.3|SA:0.072:140.4|RHO:0.003:188.9|Q1:0.011:192.3|T2:0.011:17.9|R2:0.003:212.7|P1:0.025:180.2|2SM2:0.002:35.9|M3:0.009:44.7|L2:0.015:355.8|2MK3:0.013:11.5|K2:0.033:29.4|M8:0.002:102|MS4:0.021:137.9"
+
+esphome:
+  name: tide-sdl-graph
+  on_boot:
+    - priority: -100
+      then:
+        - wait_until:
+            condition:
+              lambda: "return id(system_time).now().is_valid();"
+            timeout: 120s
+        - script.execute: redraw_graph
+
+host:
+
+logger:
+  level: INFO
+  logs:
+    lvgl: WARN
+
+external_components:
+  - source:
+      type: local
+      path: ../components
+    components: [tide]
+  - source:
+      type: local
+      path: ../test/test_components
+    components: [host_time]
+
+time:
+  - platform: host_time
+    id: system_time
+    timezone: America/New_York
+
+display:
+  - platform: sdl
+    id: my_display
+    update_interval: never
+    auto_clear_enabled: false
+    dimensions:
+      width: 980
+      height: 560
+
+font:
+  - file: "gfonts://Roboto@700"
+    id: font_title
+    size: 28
+    bpp: 4
+  - file: "gfonts://Roboto@700"
+    id: font_badge
+    size: 16
+    bpp: 4
+  - file: "gfonts://Roboto@500"
+    id: font_axis
+    size: 15
+    bpp: 4
+
+tide:
+  id: my_tide
+  time_id: system_time
+  units: ft
+  update_interval: 60s
+  station_data: ${station_data}
+
+# Repaint the curve + now-line periodically (tide moves slowly; 30 s keeps the
+# "now" marker fresh).
+interval:
+  - interval: 30s
+    then:
+      - script.execute: redraw_graph
+
+script:
+  - id: redraw_graph
+    then:
+      - lambda: |-
+          // ── geometry (must match the static axis labels below) ──────────────
+          const int LEFT = 56, TOP = 64, W = 880, H = 360;  // canvas placement/size
+          const int SPAN_H = 36;                            // hours shown (from local midnight)
+          const float VMAX = 6.0f;                          // ft full-scale
+          static float ys[880];
+
+          auto tnow = id(system_time).now();
+          if (!tnow.is_valid()) return;
+          time_t now = tnow.timestamp;
+          // Window starts at local midnight so the axis labels are fixed.
+          time_t start = now - (tnow.hour * 3600 + tnow.minute * 60 + tnow.second);
+          long span_s = (long) SPAN_H * 3600;
+          int step_s = (int) (span_s / W);
+
+          id(my_tide)->predict_series(start, step_s, W, ys);
+          if (isnan(ys[0])) return;
+
+          lv_obj_t *cv = id(tide_canvas);
+          lv_color_t c_bg = lv_color_hex(0xFFFFFF);
+          lv_color_t c_grid = lv_color_hex(0xE7EDF3);
+          lv_color_t c_fill = lv_color_hex(0xCFE3F7);
+          lv_color_t c_line = lv_color_hex(0x3E86D6);
+          lv_color_t c_now = lv_color_hex(0x9B1C1C);
+
+          lv_canvas_fill_bg(cv, c_bg, LV_OPA_COVER);
+
+          auto yfor = [&](float v) -> int {
+            int y = (int) lroundf((1.0f - v / VMAX) * (H - 1));
+            return y < 0 ? 0 : (y > H - 1 ? H - 1 : y);
+          };
+          int y0 = yfor(0.0f);
+
+          // grid: horizontal every 1 ft, vertical every 6 h
+          for (float v = 0.0f; v <= VMAX + 0.01f; v += 1.0f) {
+            int gy = yfor(v);
+            for (int x = 0; x < W; x++) lv_canvas_set_px(cv, x, gy, c_grid, LV_OPA_COVER);
+          }
+          for (int hh = 0; hh <= SPAN_H; hh += 6) {
+            int gx = (int) ((long) hh * 3600 * W / span_s);
+            if (gx >= W) gx = W - 1;
+            for (int y = 0; y < H; y++) lv_canvas_set_px(cv, gx, y, c_grid, LV_OPA_COVER);
+          }
+
+          // filled area under the curve
+          for (int x = 0; x < W; x++) {
+            int y = yfor(ys[x]);
+            int a = y < y0 ? y : y0, b = y < y0 ? y0 : y;
+            for (int yy = a; yy <= b; yy++) lv_canvas_set_px(cv, x, yy, c_fill, LV_OPA_COVER);
+          }
+
+          // the curve line (2 px), connecting adjacent columns
+          int prevy = yfor(ys[0]);
+          for (int x = 0; x < W; x++) {
+            int y = yfor(ys[x]);
+            int a = y < prevy ? y : prevy, b = y < prevy ? prevy : y;
+            for (int yy = a; yy <= b; yy++) {
+              lv_canvas_set_px(cv, x, yy, c_line, LV_OPA_COVER);
+              if (yy + 1 < H) lv_canvas_set_px(cv, x, yy + 1, c_line, LV_OPA_COVER);
+            }
+            prevy = y;
+          }
+
+          // open-circle markers at each high/low (turning points of the curve)
+          int lastdir = 0;
+          for (int x = 1; x < W; x++) {
+            int dir = ys[x] > ys[x - 1] ? 1 : (ys[x] < ys[x - 1] ? -1 : 0);
+            if (dir != 0 && lastdir != 0 && dir != lastdir) {
+              int cx = x - 1, cy = yfor(ys[x - 1]);
+              for (int dy = -5; dy <= 5; dy++)
+                for (int dx = -5; dx <= 5; dx++) {
+                  int d2 = dx * dx + dy * dy, px = cx + dx, py = cy + dy;
+                  if (d2 <= 25 && d2 >= 7 && px >= 0 && px < W && py >= 0 && py < H)
+                    lv_canvas_set_px(cv, px, py, c_line, LV_OPA_COVER);  // ring
+                }
+              for (int dy = -3; dy <= 3; dy++)
+                for (int dx = -3; dx <= 3; dx++) {
+                  int px = cx + dx, py = cy + dy;
+                  if (dx * dx + dy * dy <= 9 && px >= 0 && px < W && py >= 0 && py < H)
+                    lv_canvas_set_px(cv, px, py, c_bg, LV_OPA_COVER);   // hollow centre
+                }
+            }
+            if (dir != 0) lastdir = dir;
+          }
+
+          // "now" vertical line (2 px)
+          int nowx = (int) (((long) (now - start)) * W / span_s);
+          if (nowx >= 0 && nowx < W)
+            for (int y = 0; y < H; y++) {
+              lv_canvas_set_px(cv, nowx, y, c_now, LV_OPA_COVER);
+              if (nowx + 1 < W) lv_canvas_set_px(cv, nowx + 1, y, c_now, LV_OPA_COVER);
+            }
+          lv_obj_invalidate(cv);
+
+          // move the time badge onto the now-line
+          char b[8];
+          snprintf(b, sizeof(b), "%02d:%02d", tnow.hour, tnow.minute);
+          lv_label_set_text(id(now_badge), b);
+          lv_obj_set_x(id(now_badge), LEFT + nowx - 24);
+          lv_obj_set_y(id(now_badge), TOP + 130);
+
+lvgl:
+  pages:
+    - id: main_page
+      bg_color: 0xFFFFFF
+      widgets:
+        - label:
+            align: TOP_LEFT
+            x: 56
+            y: 20
+            text_font: font_title
+            text_color: 0x222222
+            text: "Tides Today and Tomorrow, East Greenwich RI"
+
+        - canvas:
+            id: tide_canvas
+            x: 56
+            y: 64
+            width: 880
+            height: 360
+
+        # Y-axis labels (ft), aligned to the horizontal gridlines
+        - label: { id: y6, align: TOP_LEFT, x: 34, y: 55, text_font: font_axis, text_color: 0x8A99A8, text: "6" }
+        - label: { align: TOP_LEFT, x: 34, y: 115, text_font: font_axis, text_color: 0x8A99A8, text: "5" }
+        - label: { align: TOP_LEFT, x: 34, y: 175, text_font: font_axis, text_color: 0x8A99A8, text: "4" }
+        - label: { align: TOP_LEFT, x: 34, y: 235, text_font: font_axis, text_color: 0x8A99A8, text: "3" }
+        - label: { align: TOP_LEFT, x: 34, y: 295, text_font: font_axis, text_color: 0x8A99A8, text: "2" }
+        - label: { align: TOP_LEFT, x: 34, y: 355, text_font: font_axis, text_color: 0x8A99A8, text: "1" }
+        - label: { align: TOP_LEFT, x: 34, y: 415, text_font: font_axis, text_color: 0x8A99A8, text: "0" }
+
+        # X-axis labels (local time), under the vertical gridlines (every 6 h)
+        - label: { align: TOP_LEFT, x: 42, y: 430, text_font: font_axis, text_color: 0x8A99A8, text: "12AM" }
+        - label: { align: TOP_LEFT, x: 190, y: 430, text_font: font_axis, text_color: 0x8A99A8, text: "6AM" }
+        - label: { align: TOP_LEFT, x: 334, y: 430, text_font: font_axis, text_color: 0x8A99A8, text: "12PM" }
+        - label: { align: TOP_LEFT, x: 483, y: 430, text_font: font_axis, text_color: 0x8A99A8, text: "6PM" }
+        - label: { align: TOP_LEFT, x: 628, y: 430, text_font: font_axis, text_color: 0x8A99A8, text: "12AM" }
+        - label: { align: TOP_LEFT, x: 776, y: 430, text_font: font_axis, text_color: 0x8A99A8, text: "6AM" }
+        - label: { align: TOP_LEFT, x: 918, y: 430, text_font: font_axis, text_color: 0x8A99A8, text: "12PM" }
+
+        # "now" time badge — repositioned onto the red line each redraw
+        - label:
+            id: now_badge
+            align: TOP_LEFT
+            x: 56
+            y: 194
+            text_font: font_badge
+            text_color: 0xFFFFFF
+            bg_color: 0x7A1416
+            bg_opa: COVER
+            radius: 5
+            pad_left: 7
+            pad_right: 7
+            pad_top: 4
+            pad_bottom: 4
+            text: "--:--"

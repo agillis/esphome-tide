@@ -75,8 +75,16 @@ void TideComponent::recompute_(time_t now) {
   // Astronomy + node factors are evaluated once at t0 and held constant over the
   // (~30 h) search window — they vary on an 18.6-year timescale.
   Astro a = compute_astro((double) now);
-  this->params_.clear();
-  this->params_.reserve(this->station_.constituents.size());
+  this->build_params_(a, this->params_);
+
+  this->snap_.current_height = (float) this->eval_height_(0.0);
+  this->find_extremes_(now);
+  this->snap_.valid = true;
+}
+
+void TideComponent::build_params_(const Astro &a, std::vector<ConstituentParam> &out) const {
+  out.clear();
+  out.reserve(this->station_.constituents.size());
   for (const auto &ac : this->station_.constituents) {
     double f, u;
     node_correction(ac.def->node, a, f, u);
@@ -89,12 +97,32 @@ void TideComponent::recompute_(time_t now) {
     cp.A = (double) ac.amplitude * f;
     cp.w = speed * D2R;
     cp.phi = (v0 + u - (double) ac.kappa) * D2R;
-    this->params_.push_back(cp);
+    out.push_back(cp);
   }
+}
 
-  this->snap_.current_height = (float) this->eval_height_(0.0);
-  this->find_extremes_(now);
-  this->snap_.valid = true;
+void TideComponent::predict_series(time_t start, int step_s, int count, float *out) {
+  if (!this->station_.valid) {
+    for (int i = 0; i < count; i++)
+      out[i] = NAN;
+    return;
+  }
+  Astro a = compute_astro((double) start);
+  std::vector<ConstituentParam> ps;
+  this->build_params_(a, ps);
+  for (int i = 0; i < count; i++) {
+    double dt_h = (double) ((long) i * step_s) / 3600.0;
+    double sum = this->station_.z0;
+    for (const auto &c : ps)
+      sum += c.A * std::cos(c.w * dt_h + c.phi);
+    out[i] = this->conv_((float) sum);
+  }
+}
+
+float TideComponent::predict(time_t utc) {
+  float v;
+  this->predict_series(utc, 0, 1, &v);
+  return v;
 }
 
 double TideComponent::eval_height_(double dt) const {

@@ -3,3 +3,5 @@ __pycache__/
 test/.esphome/
 test/engine_test
 *.o
+._*
+/Screenshot*.png
