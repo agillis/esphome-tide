@@ -95,16 +95,17 @@ script:
       - lambda: |-
           // ── geometry (must match the static axis labels below) ──────────────
           const int LEFT = 56, TOP = 64, W = 880, H = 360;  // canvas placement/size
-          const int SPAN_H = 36;                            // hours shown (from local midnight)
+          const int PAST_H = 13, FULL_H = 37;               // hours of past / total shown
           const float VMAX = 6.0f;                          // ft full-scale
           static float ys[880];
 
           auto tnow = id(system_time).now();
           if (!tnow.is_valid()) return;
           time_t now = tnow.timestamp;
-          // Window starts at local midnight so the axis labels are fixed.
-          time_t start = now - (tnow.hour * 3600 + tnow.minute * 60 + tnow.second);
-          long span_s = (long) SPAN_H * 3600;
+          // Rolling window: go back just far enough to include the last high AND
+          // low tide (extremes are ~6.2 h apart), then forward through the day+.
+          time_t start = now - (long) PAST_H * 3600;
+          long span_s = (long) FULL_H * 3600;
           int step_s = (int) (span_s / W);
 
           id(my_tide)->predict_series(start, step_s, W, ys);
@@ -138,11 +139,38 @@ script:
             int gy = yfor(0.5f * i);
             for (int x = 0; x < W; x++) lv_canvas_set_px(cv, x, gy, c_grid, LV_OPA_COVER);
           }
-          for (int hh = 0; hh <= SPAN_H; hh += 2) {
-            int gx = (int) ((long) hh * 3600 * W / span_s);
-            if (gx >= W) gx = W - 1;
+          // vertical gridlines + x-axis labels at each even local hour in view
+          lv_obj_t *xlab[20] = {id(xlbl0),  id(xlbl1),  id(xlbl2),  id(xlbl3),  id(xlbl4),
+                                id(xlbl5),  id(xlbl6),  id(xlbl7),  id(xlbl8),  id(xlbl9),
+                                id(xlbl10), id(xlbl11), id(xlbl12), id(xlbl13), id(xlbl14),
+                                id(xlbl15), id(xlbl16), id(xlbl17), id(xlbl18), id(xlbl19)};
+          struct tm tmv;
+          localtime_r(&start, &tmv);
+          tmv.tm_min = 0;
+          tmv.tm_sec = 0;
+          time_t tick = mktime(&tmv);          // top of the hour containing `start`
+          while (tick < start) tick += 3600;    // ceil to the next whole hour
+          localtime_r(&tick, &tmv);
+          if (tmv.tm_hour % 2 != 0) tick += 3600;  // align to an even clock hour
+          int li = 0;
+          for (time_t te = tick; te <= start + span_s && li < 20; te += 7200) {
+            int gx = (int) ((long) (te - start) * W / span_s);
+            if (gx < 0 || gx >= W)
+              continue;
             for (int y = 0; y < H; y++) lv_canvas_set_px(cv, gx, y, c_grid, LV_OPA_COVER);
+            struct tm lt;
+            localtime_r(&te, &lt);
+            int h12 = lt.tm_hour % 12;
+            if (h12 == 0) h12 = 12;
+            char lb[8];
+            snprintf(lb, sizeof(lb), "%d%s", h12, lt.tm_hour < 12 ? "AM" : "PM");
+            lv_label_set_text(xlab[li], lb);
+            lv_obj_set_x(xlab[li], LEFT + gx - 14);
+            lv_obj_set_y(xlab[li], TOP + H + 8);
+            lv_obj_clear_flag(xlab[li], LV_OBJ_FLAG_HIDDEN);
+            li++;
           }
+          for (; li < 20; li++) lv_obj_add_flag(xlab[li], LV_OBJ_FLAG_HIDDEN);
 
           // the curve line (2 px), connecting adjacent columns
           int prevy = yfor(ys[0]);
@@ -229,26 +257,27 @@ lvgl:
         - label: { align: TOP_LEFT, x: 28, y: 386, text_font: font_axis, text_color: 0x8A99A8, text: "0.5" }
         - label: { align: TOP_LEFT, x: 28, y: 416, text_font: font_axis, text_color: 0x8A99A8, text: "0.0" }
 
-        # X-axis labels (local time), under the vertical gridlines (every 2 h)
-        - label: { align: TOP_LEFT, x: 42, y: 430, text_font: font_axis, text_color: 0x8A99A8, text: "12AM" }
-        - label: { align: TOP_LEFT, x: 93, y: 430, text_font: font_axis, text_color: 0x8A99A8, text: "2AM" }
-        - label: { align: TOP_LEFT, x: 141, y: 430, text_font: font_axis, text_color: 0x8A99A8, text: "4AM" }
-        - label: { align: TOP_LEFT, x: 190, y: 430, text_font: font_axis, text_color: 0x8A99A8, text: "6AM" }
-        - label: { align: TOP_LEFT, x: 239, y: 430, text_font: font_axis, text_color: 0x8A99A8, text: "8AM" }
-        - label: { align: TOP_LEFT, x: 285, y: 430, text_font: font_axis, text_color: 0x8A99A8, text: "10AM" }
-        - label: { align: TOP_LEFT, x: 335, y: 430, text_font: font_axis, text_color: 0x8A99A8, text: "12PM" }
-        - label: { align: TOP_LEFT, x: 386, y: 430, text_font: font_axis, text_color: 0x8A99A8, text: "2PM" }
-        - label: { align: TOP_LEFT, x: 434, y: 430, text_font: font_axis, text_color: 0x8A99A8, text: "4PM" }
-        - label: { align: TOP_LEFT, x: 483, y: 430, text_font: font_axis, text_color: 0x8A99A8, text: "6PM" }
-        - label: { align: TOP_LEFT, x: 532, y: 430, text_font: font_axis, text_color: 0x8A99A8, text: "8PM" }
-        - label: { align: TOP_LEFT, x: 578, y: 430, text_font: font_axis, text_color: 0x8A99A8, text: "10PM" }
-        - label: { align: TOP_LEFT, x: 629, y: 430, text_font: font_axis, text_color: 0x8A99A8, text: "12AM" }
-        - label: { align: TOP_LEFT, x: 680, y: 430, text_font: font_axis, text_color: 0x8A99A8, text: "2AM" }
-        - label: { align: TOP_LEFT, x: 728, y: 430, text_font: font_axis, text_color: 0x8A99A8, text: "4AM" }
-        - label: { align: TOP_LEFT, x: 777, y: 430, text_font: font_axis, text_color: 0x8A99A8, text: "6AM" }
-        - label: { align: TOP_LEFT, x: 826, y: 430, text_font: font_axis, text_color: 0x8A99A8, text: "8AM" }
-        - label: { align: TOP_LEFT, x: 872, y: 430, text_font: font_axis, text_color: 0x8A99A8, text: "10AM" }
-        - label: { align: TOP_LEFT, x: 922, y: 430, text_font: font_axis, text_color: 0x8A99A8, text: "12PM" }
+        # X-axis label pool — repositioned/relabelled by redraw_graph (rolling window)
+        - label: { id: xlbl0,  align: TOP_LEFT, x: 0, y: 430, text_font: font_axis, text_color: 0x8A99A8, hidden: true, text: "" }
+        - label: { id: xlbl1,  align: TOP_LEFT, x: 0, y: 430, text_font: font_axis, text_color: 0x8A99A8, hidden: true, text: "" }
+        - label: { id: xlbl2,  align: TOP_LEFT, x: 0, y: 430, text_font: font_axis, text_color: 0x8A99A8, hidden: true, text: "" }
+        - label: { id: xlbl3,  align: TOP_LEFT, x: 0, y: 430, text_font: font_axis, text_color: 0x8A99A8, hidden: true, text: "" }
+        - label: { id: xlbl4,  align: TOP_LEFT, x: 0, y: 430, text_font: font_axis, text_color: 0x8A99A8, hidden: true, text: "" }
+        - label: { id: xlbl5,  align: TOP_LEFT, x: 0, y: 430, text_font: font_axis, text_color: 0x8A99A8, hidden: true, text: "" }
+        - label: { id: xlbl6,  align: TOP_LEFT, x: 0, y: 430, text_font: font_axis, text_color: 0x8A99A8, hidden: true, text: "" }
+        - label: { id: xlbl7,  align: TOP_LEFT, x: 0, y: 430, text_font: font_axis, text_color: 0x8A99A8, hidden: true, text: "" }
+        - label: { id: xlbl8,  align: TOP_LEFT, x: 0, y: 430, text_font: font_axis, text_color: 0x8A99A8, hidden: true, text: "" }
+        - label: { id: xlbl9,  align: TOP_LEFT, x: 0, y: 430, text_font: font_axis, text_color: 0x8A99A8, hidden: true, text: "" }
+        - label: { id: xlbl10, align: TOP_LEFT, x: 0, y: 430, text_font: font_axis, text_color: 0x8A99A8, hidden: true, text: "" }
+        - label: { id: xlbl11, align: TOP_LEFT, x: 0, y: 430, text_font: font_axis, text_color: 0x8A99A8, hidden: true, text: "" }
+        - label: { id: xlbl12, align: TOP_LEFT, x: 0, y: 430, text_font: font_axis, text_color: 0x8A99A8, hidden: true, text: "" }
+        - label: { id: xlbl13, align: TOP_LEFT, x: 0, y: 430, text_font: font_axis, text_color: 0x8A99A8, hidden: true, text: "" }
+        - label: { id: xlbl14, align: TOP_LEFT, x: 0, y: 430, text_font: font_axis, text_color: 0x8A99A8, hidden: true, text: "" }
+        - label: { id: xlbl15, align: TOP_LEFT, x: 0, y: 430, text_font: font_axis, text_color: 0x8A99A8, hidden: true, text: "" }
+        - label: { id: xlbl16, align: TOP_LEFT, x: 0, y: 430, text_font: font_axis, text_color: 0x8A99A8, hidden: true, text: "" }
+        - label: { id: xlbl17, align: TOP_LEFT, x: 0, y: 430, text_font: font_axis, text_color: 0x8A99A8, hidden: true, text: "" }
+        - label: { id: xlbl18, align: TOP_LEFT, x: 0, y: 430, text_font: font_axis, text_color: 0x8A99A8, hidden: true, text: "" }
+        - label: { id: xlbl19, align: TOP_LEFT, x: 0, y: 430, text_font: font_axis, text_color: 0x8A99A8, hidden: true, text: "" }
 
         # "now" time badge — repositioned onto the red line each redraw
         - label:
