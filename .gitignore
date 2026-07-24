@@ -5,3 +5,4 @@ test/engine_test
 *.o
 ._*
 /Screenshot*.png
+generator/.station_cache/
